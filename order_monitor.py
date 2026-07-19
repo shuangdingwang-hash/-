@@ -7,27 +7,28 @@
 import requests
 import json
 import time
+import os
 import hmac
 import hashlib
 import base64
 from datetime import datetime
 
-# ==================== 配置区域 ====================
+# ==================== 从环境变量读取配置 ====================
 
-# 钉钉机器人配置（必填）
-DINGTALK_WEBHOOK = "https://oapi.dingtalk.com/robot/send?access_token=你的token"
-DINGTALK_SECRET = "你的加签密钥"  # 如果没选加签就留空 ""
+DINGTALK_WEBHOOK = os.environ.get("DINGTALK_WEBHOOK", "")
+DINGTALK_SECRET = os.environ.get("DINGTALK_SECRET", "")
+API_TOKEN = os.environ.get("API_TOKEN", "")
 
-# 接口配置（必填）
-API_URL = "https://web-api.shpayinc.com/api/order/payOut"
-API_TOKEN = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJsb2dpblRpbWUiOjE3ODQ0MTg1MTIyNDksInNpZ24iOi0yNzk0MjU5NzUyLCJ1c2VySWQiOjY4MjUwOTkyODcyMDk0NzIsInRpbWVzdGFtcCI6MTc4NDQxODUxMjI0OX0.0vKFUOpOTNVED-NDl7bB0O6gAxFApYk2bfoT4qhKeDQ"
+# 如果环境变量没有配置，检查是否报错
+if not DINGTALK_WEBHOOK:
+    print("❌ 错误：未配置 DINGTALK_WEBHOOK 环境变量")
+if not API_TOKEN:
+    print("❌ 错误：未配置 API_TOKEN 环境变量")
 
 # ==================== 业务配置 ====================
 
-# 筛选条件：正常订单的 appName 前缀
 ALLOWED_PREFIX = "NG一类"
 
-# 查询参数
 REQUEST_DATA = {
     "transNo": "",
     "paymentTransNoList": [],
@@ -50,14 +51,12 @@ REQUEST_DATA = {
     "pageIndex": 1
 }
 
-# 定时间隔（秒），默认300秒 = 5分钟
 CHECK_INTERVAL = 300
 
 
 # ==================== 钉钉通知函数 ====================
 
 def dingtalk_sign(secret):
-    """钉钉加签"""
     timestamp = str(round(time.time() * 1000))
     secret_enc = secret.encode('utf-8')
     string_to_sign = '{}\n{}'.format(timestamp, secret)
@@ -68,7 +67,6 @@ def dingtalk_sign(secret):
 
 
 def send_dingtalk_message(text):
-    """发送钉钉消息"""
     try:
         headers = {'Content-Type': 'application/json'}
         payload = {
@@ -98,7 +96,6 @@ def send_dingtalk_message(text):
 # ==================== 订单查询函数 ====================
 
 def query_orders():
-    """查询订单列表"""
     try:
         headers = {
             'accept': 'application/json, text/plain, */*',
@@ -113,8 +110,6 @@ def query_orders():
         
         if response.status_code == 200:
             data = response.json()
-            
-            # 尝试多种可能的返回结构
             orders = None
             if isinstance(data, dict):
                 if 'data' in data and isinstance(data['data'], dict) and 'list' in data['data']:
@@ -144,7 +139,6 @@ def query_orders():
 # ==================== 核心检查逻辑 ====================
 
 def check_orders():
-    """检查订单并发送通知"""
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 🔍 开始检查订单...")
     
     orders = query_orders()
@@ -153,7 +147,6 @@ def check_orders():
         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 📭 未获取到订单数据")
         return
     
-    # 统计异常订单数量
     abnormal_count = 0
     for order in orders:
         app_name = order.get('appName', '')
@@ -161,7 +154,6 @@ def check_orders():
             abnormal_count += 1
     
     if abnormal_count > 0:
-        # ===== 简洁版通知消息 =====
         msg = f"🚨 尼日利亚代付订单二三类应用出现了新的订单，请查看\n"
         msg += f"📊 异常订单数量：{abnormal_count} 笔\n"
         msg += f"🕐 检测时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
@@ -175,7 +167,6 @@ def check_orders():
 # ==================== 主函数 ====================
 
 def main():
-    """主函数 - 定时循环执行"""
     print("=" * 50)
     print("🚀 订单监控脚本已启动")
     print(f"📋 监控规则：appName 不以「{ALLOWED_PREFIX}」开头的订单")
@@ -183,10 +174,8 @@ def main():
     print("=" * 50)
     print("按 Ctrl+C 可停止脚本\n")
     
-    # 先立即执行一次
     check_orders()
     
-    # 然后按间隔循环执行
     while True:
         time.sleep(CHECK_INTERVAL)
         check_orders()
