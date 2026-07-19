@@ -5,4 +5,4 @@ nixPkgs = ["python311"]
 cmds = ["pip install requests"]
 
 [phases.start]
-cmd = ["python", "order_monitor.py"]
+cmd = "python order_monitor.py"
