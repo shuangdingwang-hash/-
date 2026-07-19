@@ -1,0 +1,8 @@
+[phases.setup]
+nixPkgs = ["python311"]
+
+[phases.install]
+cmds = ["pip install requests"]
+
+[phases.start]
+cmd = ["python", "order_monitor.py"]
